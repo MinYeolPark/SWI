@@ -1,0 +1,20 @@
+{
+  "type": "imu",
+  "ts": 1768297881156,
+  "uid": "e22f76c3-13e9-4c62-8c9e-e6023c823743",
+  "name": "Min",
+  "role": "phone",
+  "match_id": "",
+  "yaw": 321.8,
+  "pitch": 22.8,
+  "roll": 34.5,
+  "ax": -5.1,
+  "ay": 4,
+  "az": 6.8,
+  "gx": 16.9,
+  "gy": 2.4,
+  "gz": 9.8,
+  "oriCount": 42591,
+  "motionCount": 78507,
+  "fire": 0
+}
