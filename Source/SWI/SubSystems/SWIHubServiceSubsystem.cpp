@@ -1,12 +1,10 @@
 #include "SWIHubServiceSubsystem.h"
-
 #include "Async/Async.h"
 #include "Dom/JsonObject.h"
 #include "GenericPlatform/GenericPlatformHttp.h"
 #include "HttpModule.h"
 #include "Interfaces/IHttpRequest.h"
 #include "Interfaces/IHttpResponse.h"
-#include "JsonObjectConverter.h"
 #include "Modules/ModuleManager.h"
 #include "Serialization/JsonReader.h"
 #include "Serialization/JsonSerializer.h"
@@ -24,7 +22,7 @@ static FString TrimSlashEnd(const FString& In)
 	return S;
 }
 
-static bool TryGetNumberAsFloat(const TSharedPtr<FJsonObject>& Root, const TCHAR* Key, float& Out)
+bool USWIHubClientSubsystem::TryGetNumberAsFloat(const TSharedPtr<FJsonObject>& Root, const TCHAR* Key, float& Out)
 {
 	double D = 0.0;
 	if (!Root.IsValid()) return false;
@@ -36,7 +34,7 @@ static bool TryGetNumberAsFloat(const TSharedPtr<FJsonObject>& Root, const TCHAR
 	return false;
 }
 
-bool USWIHubClientSubsystem::TryParseDeviceInfo(const TSharedPtr<FJsonObject>& Root, FSWIHubDeviceInfo& Out)
+bool USWIHubClientSubsystem::TryParseDeviceInfo(const TSharedPtr<FJsonObject>& Root, FSWIHubDeviceInfo& Out) const
 {
 	if (!Root.IsValid()) return false;
 
@@ -48,18 +46,19 @@ bool USWIHubClientSubsystem::TryParseDeviceInfo(const TSharedPtr<FJsonObject>& R
 	return !Out.Uid.IsEmpty() || !Out.Role.IsEmpty();
 }
 
-bool USWIHubClientSubsystem::TryParseImuFrame(const TSharedPtr<FJsonObject>& Root, FSWIHubImuFrame& Out)
+bool USWIHubClientSubsystem::TryParseImuFrame(const TSharedPtr<FJsonObject>& Root, FSWIHubImuFrame& Out) const
 {
 	if (!Root.IsValid()) return false;
 
 	Root->TryGetStringField(TEXT("match_id"), Out.MatchId);
-	Root->TryGetStringField(TEXT("matchId"), Out.MatchId); // 서버 키 흔들릴 때 대비
+	Root->TryGetStringField(TEXT("matchId"), Out.MatchId);
 	Root->TryGetStringField(TEXT("uid"), Out.Uid);
 	Root->TryGetStringField(TEXT("name"), Out.Name);
 
-	Root->TryGetNumberField(TEXT("ts_ms"), Out.TsMs);
-	Root->TryGetNumberField(TEXT("tsMs"), Out.TsMs);
-	Root->TryGetNumberField(TEXT("ts"), Out.TsMs);
+	double Ts = 0.0;
+	if (Root->TryGetNumberField(TEXT("ts_ms"), Ts)) Out.TsMs = Ts;
+	if (Root->TryGetNumberField(TEXT("tsMs"), Ts))  Out.TsMs = Ts;
+	if (Root->TryGetNumberField(TEXT("ts"), Ts))    Out.TsMs = Ts;
 
 	TryGetNumberAsFloat(Root, TEXT("yaw"), Out.Yaw);
 	TryGetNumberAsFloat(Root, TEXT("pitch"), Out.Pitch);
@@ -73,7 +72,9 @@ bool USWIHubClientSubsystem::TryParseImuFrame(const TSharedPtr<FJsonObject>& Roo
 	TryGetNumberAsFloat(Root, TEXT("gy"), Out.Gy);
 	TryGetNumberAsFloat(Root, TEXT("gz"), Out.Gz);
 
-	Root->TryGetNumberField(TEXT("fire"), Out.Fire);
+	int32 Fire = 0;
+	Root->TryGetNumberField(TEXT("fire"), Fire);
+	Out.Fire = Fire;
 
 	return !Out.Uid.IsEmpty();
 }
@@ -88,8 +89,10 @@ void USWIHubClientSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 		this, &ThisClass::HandlePostLoadMap
 	);
 
-	// 자동 시작(원치 않으면 이 줄 지우고 BP/코드에서 StartHub 호출)
-	StartHub();
+	if (bAutoStart)
+	{
+		StartHub();
+	}
 }
 
 void USWIHubClientSubsystem::Deinitialize()
@@ -107,40 +110,6 @@ void USWIHubClientSubsystem::Deinitialize()
 	Super::Deinitialize();
 }
 
-void USWIHubClientSubsystem::StartHub()
-{
-	if (bStarted) return;
-	bStarted = true;
-
-	UE_LOG(LogTemp, Log, TEXT("[HUB] StartHub"));
-
-	UWorld* World = GetWorld();
-	if (IsValidGameWorld(World))
-	{
-		ActiveWorld = World;
-		StartPolling();
-
-		if (!bConnectOnlyWhenPhonePresent)
-		{
-			ConnectWs();
-		}
-	}
-}
-
-void USWIHubClientSubsystem::StopHub()
-{
-	if (!bStarted) return;
-	bStarted = false;
-
-	UE_LOG(LogTemp, Log, TEXT("[HUB] StopHub"));
-
-	StopPolling();
-	DisconnectWs();
-
-	LastPhoneCount = -1;
-	ActiveWorld.Reset();
-}
-
 bool USWIHubClientSubsystem::IsValidGameWorld(UWorld* World) const
 {
 	return World && World->IsGameWorld() && !World->bIsTearingDown;
@@ -151,17 +120,54 @@ void USWIHubClientSubsystem::HandlePostLoadMap(UWorld* World)
 	if (!bStarted) return;
 	if (!IsValidGameWorld(World)) return;
 
-	// PIE/맵전환에서도 “게임 월드” 기준으로 ActiveWorld 갱신
 	ActiveWorld = World;
 
 	UE_LOG(LogTemp, Log, TEXT("[HUB] PostLoadMapWithWorld: %s"), *World->GetName());
 
-	StartPolling();
+	if (bUseStatsPolling)
+	{
+		StartPolling();
+	}
 
-	if (!bConnectOnlyWhenPhonePresent && !bWsConnected)
+	if (!bWsConnected)
 	{
 		ConnectWs();
 	}
+}
+
+void USWIHubClientSubsystem::StartHub()
+{
+	if (bStarted) return;
+	bStarted = true;
+
+	UWorld* World = GetWorld();
+	if (IsValidGameWorld(World))
+	{
+		ActiveWorld = World;
+
+		if (bUseStatsPolling)
+		{
+			StartPolling();
+		}
+
+		ConnectWs();
+	}
+
+	UE_LOG(LogTemp, Log, TEXT("[HUB] StartHub (Polling=%d)"), bUseStatsPolling ? 1 : 0);
+}
+
+void USWIHubClientSubsystem::StopHub()
+{
+	if (!bStarted) return;
+	bStarted = false;
+
+	StopPolling();
+	DisconnectWs();
+
+	LastPhoneCount = -1;
+	ActiveWorld.Reset();
+
+	UE_LOG(LogTemp, Log, TEXT("[HUB] StopHub"));
 }
 
 void USWIHubClientSubsystem::StartPolling()
@@ -172,7 +178,7 @@ void USWIHubClientSubsystem::StartPolling()
 	auto& TM = World->GetTimerManager();
 	if (TM.IsTimerActive(PollTimer)) return;
 
-	// 즉시 1회 실행 후 주기 실행
+	// 즉시 1회
 	PollDevices();
 	TM.SetTimer(PollTimer, this, &ThisClass::PollDevices, PollIntervalSec, true);
 
@@ -191,6 +197,8 @@ void USWIHubClientSubsystem::StopPolling()
 void USWIHubClientSubsystem::PollDevices()
 {
 	if (!bStarted) return;
+	if (!bUseStatsPolling) return;
+	if (!bStatsEndpointAvailable) return;
 
 	UWorld* World = ActiveWorld.Get();
 	if (!IsValidGameWorld(World)) return;
@@ -203,28 +211,41 @@ void USWIHubClientSubsystem::PollDevices()
 	Req->SetURL(Url);
 	Req->SetTimeout(2.0f);
 
-	Req->OnProcessRequestComplete().BindLambda([this](FHttpRequestPtr Request, FHttpResponsePtr Response, bool bOk)
+	Req->OnProcessRequestComplete().BindLambda([this](FHttpRequestPtr, FHttpResponsePtr Response, bool bOk)
 		{
 			if (!bStarted) return;
 
 			if (!bOk || !Response.IsValid())
 			{
-				UE_LOG(LogTemp, Warning, TEXT("[HUB] /stats failed"));
+				UE_LOG(LogTemp, Warning, TEXT("[HUB] /stats failed (no response)"));
 				return;
 			}
 
+			const int32 Code = Response->GetResponseCode();
 			const FString Body = Response->GetContentAsString();
+
+			if (Code != 200)
+			{
+				UE_LOG(LogTemp, Warning, TEXT("[HUB] /stats http=%d (body='%s')"), Code, *Body.Left(64));
+
+				if (Code == 404)
+				{
+					bStatsEndpointAvailable = false;
+					UE_LOG(LogTemp, Warning, TEXT("[HUB] /stats not available on server. Disable stats polling (WS-only)."));
+					StopPolling();
+				}
+				return;
+			}
 
 			TSharedPtr<FJsonObject> Root;
 			const TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(Body);
 			if (!FJsonSerializer::Deserialize(Reader, Root) || !Root.IsValid())
 			{
-				UE_LOG(LogTemp, Warning, TEXT("[HUB] /stats JSON parse failed"));
+				UE_LOG(LogTemp, Warning, TEXT("[HUB] /stats JSON parse failed (body='%s')"), *Body.Left(64));
 				return;
 			}
 
 			int32 PhoneCount = 0;
-
 			const TArray<TSharedPtr<FJsonValue>>* ClientsArr = nullptr;
 			if (Root->TryGetArrayField(TEXT("clients"), ClientsArr) && ClientsArr)
 			{
@@ -247,18 +268,6 @@ void USWIHubClientSubsystem::PollDevices()
 				UE_LOG(LogTemp, Log, TEXT("[HUB] phone_count=%d (prev=%d)"), PhoneCount, LastPhoneCount);
 				LastPhoneCount = PhoneCount;
 			}
-
-			if (bConnectOnlyWhenPhonePresent)
-			{
-				if (PhoneCount > 0 && !bWsConnected)
-				{
-					ConnectWs();
-				}
-				else if (PhoneCount == 0 && bWsConnected)
-				{
-					DisconnectWs();
-				}
-			}
 		});
 
 	Req->ProcessRequest();
@@ -273,7 +282,6 @@ FString USWIHubClientSubsystem::BuildWsUrl() const
 
 	FString Base = TrimSlashEnd(HubHttpBaseUrl);
 
-	// http(s) -> ws(s) 변환
 	if (Base.StartsWith(TEXT("https://")))
 	{
 		Base = TEXT("wss://") + Base.Mid(8);
@@ -282,7 +290,6 @@ FString USWIHubClientSubsystem::BuildWsUrl() const
 	{
 		Base = TEXT("ws://") + Base.Mid(7);
 	}
-	// 이미 ws:// or wss:// 라면 그대로
 
 	const FString EncUid = FGenericPlatformHttp::UrlEncode(ClientUid);
 	const FString EncName = FGenericPlatformHttp::UrlEncode(ClientName);
@@ -300,7 +307,6 @@ void USWIHubClientSubsystem::ConnectWs()
 
 	World->GetTimerManager().ClearTimer(ReconnectTimer);
 
-	// 모듈 로드(이게 제일 안전)
 	FModuleManager::LoadModuleChecked<FWebSocketsModule>("WebSockets");
 
 	const FString WsUrl = BuildWsUrl();
@@ -313,7 +319,6 @@ void USWIHubClientSubsystem::ConnectWs()
 			bWsConnected = true;
 			UE_LOG(LogTemp, Log, TEXT("[HUB] WS Connected"));
 
-			// UE 쪽 hello (서버가 필요하면)
 			if (Socket.IsValid())
 			{
 				Socket->Send(TEXT("{\"type\":\"hello\",\"role\":\"ue\"}"));
@@ -336,8 +341,6 @@ void USWIHubClientSubsystem::ConnectWs()
 
 	Socket->OnMessage().AddLambda([this](const FString& Msg)
 		{
-			UE_LOG(LogTemp, Log, TEXT("[HUB] WS OnMessage RAW: %s"), *Msg);
-
 			AsyncTask(ENamedThreads::GameThread, [this, Msg]()
 				{
 					HandleWsMessage_GameThread(Msg);
@@ -372,12 +375,6 @@ void USWIHubClientSubsystem::ScheduleReconnect()
 	UWorld* World = ActiveWorld.Get();
 	if (!IsValidGameWorld(World)) return;
 
-	// 폰 있을 때만 붙는 모드면, 폰이 없으면 재접속 안 함
-	if (bConnectOnlyWhenPhonePresent && LastPhoneCount <= 0)
-	{
-		return;
-	}
-
 	auto& TM = World->GetTimerManager();
 	if (TM.IsTimerActive(ReconnectTimer)) return;
 
@@ -389,7 +386,6 @@ void USWIHubClientSubsystem::HandleWsMessage_GameThread(const FString& Msg)
 {
 	OnRawMessage.Broadcast(Msg);
 
-	// device_connected 같은 메시지를 받을 예정이면 여기서 파싱
 	TSharedPtr<FJsonObject> Root;
 	const TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(Msg);
 	if (!FJsonSerializer::Deserialize(Reader, Root) || !Root.IsValid())
@@ -400,9 +396,7 @@ void USWIHubClientSubsystem::HandleWsMessage_GameThread(const FString& Msg)
 	FString Type;
 	Root->TryGetStringField(TEXT("type"), Type);
 
-	if (Type.Equals(TEXT("imu"), ESearchCase::IgnoreCase) ||
-		Type.Equals(TEXT("imu_frame"), ESearchCase::IgnoreCase) ||
-		Type.Equals(TEXT("imuFrame"), ESearchCase::IgnoreCase))
+	if (Type.Equals(TEXT("imu"), ESearchCase::IgnoreCase))
 	{
 		FSWIHubImuFrame Frame;
 		if (TryParseImuFrame(Root, Frame))
@@ -415,19 +409,48 @@ void USWIHubClientSubsystem::HandleWsMessage_GameThread(const FString& Msg)
 	if (Type == TEXT("device_connected"))
 	{
 		FSWIHubDeviceInfo D;
-		Root->TryGetStringField(TEXT("uid"), D.Uid);
-		Root->TryGetStringField(TEXT("name"), D.Name);
-		Root->TryGetStringField(TEXT("role"), D.Role);
-		Root->TryGetStringField(TEXT("remote"), D.Remote);
-		OnDeviceConnected.Broadcast(D);
+		if (TryParseDeviceInfo(Root, D))
+		{
+			OnDeviceConnected.Broadcast(D);
+		}
+		return;
 	}
-	else if (Type == TEXT("device_disconnected"))
+
+	if (Type == TEXT("device_disconnected"))
 	{
 		FSWIHubDeviceInfo D;
-		Root->TryGetStringField(TEXT("uid"), D.Uid);
-		Root->TryGetStringField(TEXT("name"), D.Name);
-		Root->TryGetStringField(TEXT("role"), D.Role);
-		Root->TryGetStringField(TEXT("remote"), D.Remote);
-		OnDeviceDisconnected.Broadcast(D);
+		if (TryParseDeviceInfo(Root, D))
+		{
+			OnDeviceDisconnected.Broadcast(D);
+		}
+		return;
+	}
+
+	if (Type == TEXT("device_list"))
+	{
+		const TArray<TSharedPtr<FJsonValue>>* DevicesArr = nullptr;
+		int32 PhoneCount = 0;
+
+		if (Root->TryGetArrayField(TEXT("devices"), DevicesArr) && DevicesArr)
+		{
+			for (const TSharedPtr<FJsonValue>& V : *DevicesArr)
+			{
+				const TSharedPtr<FJsonObject>* O = nullptr;
+				if (!V.IsValid() || !V->TryGetObject(O) || !O || !O->IsValid()) continue;
+
+				FString Role;
+				(*O)->TryGetStringField(TEXT("role"), Role);
+				if (Role.Equals(TEXT("phone"), ESearchCase::IgnoreCase))
+				{
+					PhoneCount++;
+				}
+			}
+		}
+
+		if (PhoneCount != LastPhoneCount)
+		{
+			LastPhoneCount = PhoneCount;
+			UE_LOG(LogTemp, Log, TEXT("[HUB] device_list phone_count=%d"), PhoneCount);
+		}
 	}
 }

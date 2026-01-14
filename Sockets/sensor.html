@@ -3,70 +3,200 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
-  <title>Phone IMU → Hub (Match 2P)</title>
+  <title>Phone IMU → Hub (Single)</title>
   <style>
-    body { font-family: system-ui, sans-serif; padding: 14px; margin: 0; background:#0b0f14; color:#e6edf3; }
-    h2 { margin: 6px 0 10px; }
-    .row { display:flex; gap:10px; flex-wrap:wrap; }
-    .card { background:#111823; border:1px solid #223; border-radius:12px; padding:12px; flex: 1 1 340px; }
-    label { display:block; font-size: 12px; opacity: .8; margin-top: 8px; }
-    input { width:100%; font-size:16px; padding:10px; border-radius:10px; border:1px solid #334; background:#0b0f14; color:#e6edf3; }
-    button { font-size: 16px; padding: 12px 14px; border-radius: 12px; border: 1px solid #334; background:#1b2a41; color:#e6edf3; }
-    button:active { transform: scale(0.98); }
-    .btnGood { background:#1e5a3a; }
-    .btnDanger { background:#5a1e2a; }
-    .btnOnce { background:#3a3a8a; }
-    .big { font-size: 20px; padding: 18px 14px; width:100%; }
-    .fire { background:#b02020; border-color:#ff5050; }
-    .fire.on { background:#ff2d2d; }
-    pre { background:#061018; border:1px solid #223; color:#7CFF7C; padding:12px; border-radius:12px; white-space:pre-wrap; line-height:1.35; margin: 10px 0 0; }
-    .hint { font-size:12px; opacity:.75; margin-top:6px; }
-    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+    :root{
+      --bg:#0b0f14;
+      --card:#111823;
+      --line:#223043;
+      --text:#e6edf3;
+      --muted:rgba(230,237,243,.72);
+      --good:#1e5a3a;
+      --bad:#5a1e2a;
+      --once:#3a3a8a;
+      --accent:#1b2a41;
+      --fire:#b02020;
+      --fireOn:#ff2d2d;
+    }
+    *{ box-sizing:border-box; }
+    body{
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      padding: 14px;
+      margin: 0;
+      background:var(--bg);
+      color:var(--text);
+    }
+    h2{ margin: 6px 0 10px; font-size:18px; }
+    .row{ display:flex; gap:10px; flex-wrap:wrap; }
+    .card{
+      background:var(--card);
+      border:1px solid var(--line);
+      border-radius:14px;
+      padding:12px;
+      flex: 1 1 360px;
+      box-shadow: 0 8px 18px rgba(0,0,0,.25);
+    }
+    .grid2{
+      display:grid;
+      grid-template-columns: 1fr 1fr;
+      gap:10px;
+    }
+    label{ display:block; font-size:12px; color:var(--muted); margin-top:8px; }
+    input{
+      width:100%;
+      font-size:16px;
+      padding:10px 12px;
+      border-radius:12px;
+      border:1px solid var(--line);
+      background:#0b0f14;
+      color:var(--text);
+      outline:none;
+    }
+    input:focus{ border-color:#3a587d; }
+    button{
+      font-size: 16px;
+      padding: 12px 14px;
+      border-radius: 14px;
+      border: 1px solid var(--line);
+      background:var(--accent);
+      color:var(--text);
+      cursor:pointer;
+      user-select:none;
+      -webkit-tap-highlight-color: transparent;
+      width:100%;
+    }
+    button:active{ transform: scale(0.985); }
+    .btnGood{ background:var(--good); }
+    .btnDanger{ background:var(--bad); }
+    .btnOnce{ background:var(--once); }
+    .btnSlim{ padding:10px 12px; font-size:15px; border-radius:12px; }
+    .btnRow{
+      display:grid;
+      grid-template-columns: 1fr 1fr;
+      gap:10px;
+      margin-top:10px;
+    }
+    .btnRow3{
+      display:grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap:10px;
+      margin-top:10px;
+    }
+    .hint{ font-size:12px; color:var(--muted); margin-top:8px; line-height:1.4; }
+    .mono{ font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+    pre{
+      background:#061018;
+      border:1px solid var(--line);
+      color:#7CFF7C;
+      padding:12px;
+      border-radius:14px;
+      white-space:pre-wrap;
+      line-height:1.35;
+      margin: 10px 0 0;
+      overflow:auto;
+      min-height: 180px;
+    }
+    .topbar{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:10px;
+      margin-bottom:10px;
+    }
+    .pill{
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      padding:6px 10px;
+      border-radius:999px;
+      border:1px solid var(--line);
+      background:#0b0f14;
+      font-size:12px;
+      color:var(--muted);
+      white-space:nowrap;
+    }
+    .dot{
+      width:10px; height:10px; border-radius:999px;
+      background:#666;
+      box-shadow:0 0 0 2px rgba(255,255,255,.06) inset;
+    }
+    .dot.open{ background:#3cff6a; }
+    .dot.closed{ background:#ff5050; }
+    .dot.conn{ background:#ffd24d; }
+    .bigFire{
+      font-size: 22px;
+      padding: 18px 14px;
+      border-radius: 16px;
+      background:var(--fire);
+      border-color:#ff5050;
+    }
+    .bigFire.on{ background:var(--fireOn); }
+    .smallNote{
+      font-size:12px;
+      color:var(--muted);
+      margin-top:10px;
+      padding-top:10px;
+      border-top:1px dashed rgba(255,255,255,.10);
+    }
   </style>
 </head>
 <body>
-  <h2>Phone IMU Sender (2P Match)</h2>
+  <div class="topbar">
+    <h2>Phone IMU Sender (Single)</h2>
+    <div class="pill">
+      <span id="wsDot" class="dot closed"></span>
+      <span id="wsStateText">WS: CLOSED</span>
+    </div>
+  </div>
 
   <div class="row">
     <div class="card">
-      <div class="row">
-        <div style="flex:1">
+      <div class="grid2">
+        <div>
           <label>Player Name</label>
           <input id="name" placeholder="ex) Minyeol" />
         </div>
-        <div style="flex:1">
+        <div>
           <label>UID (auto)</label>
           <input id="uid" class="mono" />
-          <div class="hint">UID는 localStorage에 저장됩니다.</div>
         </div>
       </div>
 
-      <div class="row" style="margin-top:10px">
-        <button id="btnPerm">센서 권한</button>
-        <button id="btnConnect" class="btnGood">WS 연결</button>
-        <button id="btnDisconnect" class="btnDanger">WS 해제</button>
+      <div class="grid2" style="margin-top:10px">
+        <div>
+          <label>Send interval (ms)</label>
+          <input id="intervalMs" type="number" min="10" max="200" step="1" value="50" />
+        </div>
+        <div>
+          <label>WS path (auto)</label>
+          <input id="wsBase" class="mono" />
+        </div>
       </div>
 
-      <div class="row" style="margin-top:10px">
-        <button id="btnJoin" class="btnGood">접속하기(매칭)</button>
-        <button id="btnLeave" class="btnDanger">나가기</button>
+      <div class="btnRow3">
+        <button id="btnPerm" class="btnSlim">센서 권한</button>
+        <button id="btnConnect" class="btnGood btnSlim">WS 연결</button>
+        <button id="btnDisconnect" class="btnDanger btnSlim">WS 해제</button>
       </div>
 
-      <div class="row" style="margin-top:10px">
+      <div class="btnRow3">
         <button id="btnStart" class="btnGood">전송 시작</button>
         <button id="btnStop" class="btnDanger">전송 중지</button>
         <button id="btnOnce" class="btnOnce">1회 전송</button>
       </div>
 
       <div class="hint">
-        HTTPS(ngrok) 환경이면 iOS 센서가 더 잘 켜집니다.
+        • 가능한 HTTPS(ngrok)에서 실행하면 iOS 센서 권한이 더 안정적입니다.<br/>
+        • UE 쪽에서 특정 UID만 바인딩한다면 UID를 고정해서 쓰면 됩니다(localStorage).
       </div>
     </div>
 
     <div class="card">
-      <button id="btnFire" class="big fire">FIRE (Hold)</button>
+      <button id="btnFire" class="bigFire">FIRE (Hold)</button>
       <div class="hint">누르고 있는 동안 fire=1 전송</div>
-      <div class="hint" id="matchHint"></div>
+      <div class="smallNote">
+        센서 이벤트가 0이면: iOS는 권한 버튼을 누른 뒤, 화면 터치/버튼 입력이 한 번 있어야 이벤트가 살아나는 경우가 많습니다.
+      </div>
     </div>
   </div>
 
@@ -75,14 +205,18 @@
 <script>
 (() => {
   const out = document.getElementById("out");
-  const matchHint = document.getElementById("matchHint");
   const log = (s)=> out.textContent = s;
 
   const nameEl = document.getElementById("name");
   const uidEl  = document.getElementById("uid");
+  const intervalEl = document.getElementById("intervalMs");
+  const wsBaseEl = document.getElementById("wsBase");
 
-  const LS_UID = "imu_uid_v2";
-  const LS_NAME = "imu_name_v2";
+  const wsDot = document.getElementById("wsDot");
+  const wsStateText = document.getElementById("wsStateText");
+
+  const LS_UID = "imu_uid_single_v1";
+  const LS_NAME = "imu_name_single_v1";
 
   function ensureUid() {
     let u = localStorage.getItem(LS_UID);
@@ -99,6 +233,7 @@
 
   const wsProto = (location.protocol === "https:") ? "wss" : "ws";
   const WS_URL_BASE = `${wsProto}://${location.host}/ws`;
+  wsBaseEl.value = WS_URL_BASE;
 
   let ws = null;
   let sending = false;
@@ -110,21 +245,28 @@
   let lastSentMs = 0;
 
   const buttons = { fire: 0 };
-  let currentMatchId = "";
+
+  function setWsIndicator(state) {
+    wsDot.classList.remove("open","closed","conn");
+    if (state === "OPEN") { wsDot.classList.add("open"); wsStateText.textContent = "WS: OPEN"; }
+    else if (state === "CONNECTING") { wsDot.classList.add("conn"); wsStateText.textContent = "WS: CONNECTING"; }
+    else { wsDot.classList.add("closed"); wsStateText.textContent = "WS: CLOSED"; }
+  }
 
   function status(extra="") {
     const rs = ws ? ws.readyState : "null";
     const u = uidEl.value.trim();
     const n = nameEl.value.trim();
-    const url = `${WS_URL_BASE}?uid=${encodeURIComponent(u)}&name=${encodeURIComponent(n)}&role=phone`;
+    const base = wsBaseEl.value.trim() || WS_URL_BASE;
+    const url = `${base}?uid=${encodeURIComponent(u)}&name=${encodeURIComponent(n)}&role=phone`;
+    const intervalMs = Math.max(10, Math.min(200, Number(intervalEl.value || 50)));
     return [
       extra,
       `isSecureContext: ${window.isSecureContext}`,
       `URL: ${location.href}`,
       `WS_URL: ${url}`,
       `WS: ${rs} (0=CONN,1=OPEN,2=CLOSING,3=CLOSED)`,
-      `Sending: ${sending}`,
-      `Match: ${currentMatchId || "(none)"}`,
+      `Sending: ${sending}  (interval=${intervalMs}ms)`,
       `Events: ori=${counts.ori}, motion=${counts.motion}`,
       `ORI yaw/pitch/roll: ${latest.yaw} / ${latest.pitch} / ${latest.roll}`,
       `ACC ax/ay/az: ${latest.ax} / ${latest.ay} / ${latest.az}`,
@@ -172,44 +314,56 @@
     }, { passive:true });
   }
 
+  function buildImuMsg() {
+    const u = uidEl.value.trim();
+    const n = nameEl.value.trim();
+    return {
+      type: "imu",
+      ts: Date.now(),
+      uid: u, name: n, role: "phone",
+      // 싱글 모드: match_id 같은 거 안 보냄
+      yaw: latest.yaw, pitch: latest.pitch, roll: latest.roll,
+      ax: latest.ax, ay: latest.ay, az: latest.az,
+      gx: latest.gx, gy: latest.gy, gz: latest.gz,
+      oriCount: counts.ori, motionCount: counts.motion,
+      fire: buttons.fire
+    };
+  }
+
   function connectWS() {
     return new Promise((resolve, reject) => {
       const u = uidEl.value.trim();
       const n = nameEl.value.trim();
-      const url = `${WS_URL_BASE}?uid=${encodeURIComponent(u)}&name=${encodeURIComponent(n)}&role=phone`;
+      const base = wsBaseEl.value.trim() || WS_URL_BASE;
+      const url = `${base}?uid=${encodeURIComponent(u)}&name=${encodeURIComponent(n)}&role=phone`;
 
+      setWsIndicator("CONNECTING");
       ws = new WebSocket(url);
 
       ws.onopen = () => {
-        ws.send(JSON.stringify({ type:"hello", uid:u, name:n, role:"phone", ts:Date.now() }));
+        setWsIndicator("OPEN");
+        // 서버가 hello를 기대하는 경우를 대비해 유지
+        try { ws.send(JSON.stringify({ type:"hello", uid:u, name:n, role:"phone", ts:Date.now() })); } catch {}
         resolve();
       };
-      ws.onerror = () => reject(new Error("ws error"));
+
+      ws.onerror = () => {
+        setWsIndicator("CLOSED");
+        reject(new Error("ws error"));
+      };
+
       ws.onclose = (e) => {
+        setWsIndicator("CLOSED");
         sending = false;
         if (timer) { clearInterval(timer); timer = null; }
         log(status(`WS CLOSED code=${e.code} reason=${e.reason||"(none)"}`));
       };
+
+      // 싱글 모드: 매칭 메시지 처리 없음 (필요하면 여기서 debug 출력만)
       ws.onmessage = (ev) => {
-        try {
-          const msg = JSON.parse(ev.data);
-          if (msg.type === "match_start") {
-            currentMatchId = msg.match_id || "";
-            matchHint.textContent = `매치 시작! match_id=${currentMatchId}`;
-            log(status("MATCH_START 수신"));
-          } else if (msg.type === "match_end") {
-            currentMatchId = "";
-            matchHint.textContent = `매치 종료`;
-            log("MATCH_END\n" + JSON.stringify(msg, null, 2) + "\n\n" + status());
-          } else if (msg.type === "queue_status") {
-            matchHint.textContent = `대기중... queue_len=${msg.queue_len}`;
-            log(status("QUEUE"));
-          } else if (msg.type === "match_abort") {
-            currentMatchId = "";
-            matchHint.textContent = `매치 중단: ${msg.reason}`;
-            log(status("MATCH_ABORT"));
-          }
-        } catch {}
+        // 서버가 뭔가 보내는 경우가 있으면 로그로만 확인
+        // (원하면 주석 해제)
+        // log("SERVER MSG: " + ev.data + "\n\n" + status());
       };
     });
   }
@@ -224,52 +378,8 @@
     sending = false;
     if (timer) { clearInterval(timer); timer = null; }
     if (ws) { try { ws.close(); } catch {} ws = null; }
-    currentMatchId = "";
-    matchHint.textContent = "";
+    setWsIndicator("CLOSED");
     log(status("Disconnected"));
-  }
-
-  function buildImuMsg(typeOverride="imu") {
-    const u = uidEl.value.trim();
-    const n = nameEl.value.trim();
-    return {
-      type: typeOverride,
-      ts: Date.now(),
-      uid: u, name: n, role: "phone",
-      match_id: currentMatchId || "",
-      yaw: latest.yaw, pitch: latest.pitch, roll: latest.roll,
-      ax: latest.ax, ay: latest.ay, az: latest.az,
-      gx: latest.gx, gy: latest.gy, gz: latest.gz,
-      oriCount: counts.ori, motionCount: counts.motion,
-      fire: buttons.fire
-    };
-  }
-
-  async function joinMatch() {
-    attachSensorsOnce();
-    await requestPerm();
-
-    const ok = await ensureConnected();
-    if (!ok) { log(status("WS 연결 실패")); return; }
-
-    ws.send(JSON.stringify({
-      type: "join_request",
-      ts: Date.now(),
-      uid: uidEl.value.trim(),
-      name: nameEl.value.trim(),
-      role: "phone"
-    }));
-
-    log(status("join_request 보냄"));
-  }
-
-  async function leaveAll() {
-    const ok = await ensureConnected();
-    if (!ok) { log(status("WS 연결 실패")); return; }
-    ws.send(JSON.stringify({ type:"leave", ts:Date.now(), uid:uidEl.value.trim(), role:"phone" }));
-    currentMatchId = "";
-    matchHint.textContent = "";
-    log(status("leave 보냄"));
   }
 
   async function startSending() {
@@ -282,12 +392,14 @@
     sending = true;
     if (timer) clearInterval(timer);
 
+    const intervalMs = Math.max(10, Math.min(200, Number(intervalEl.value || 50)));
+
     timer = setInterval(() => {
       if (!sending || !ws || ws.readyState !== 1) return;
-      ws.send(JSON.stringify(buildImuMsg("imu")));
+      try { ws.send(JSON.stringify(buildImuMsg())); } catch {}
       lastSentMs = Date.now();
       log(status("Sending..."));
-    }, 50);
+    }, intervalMs);
 
     log(status("Started"));
   }
@@ -305,7 +417,7 @@
     const ok = await ensureConnected();
     if (!ok) { log(status("WS 연결 실패")); return; }
 
-    ws.send(JSON.stringify(buildImuMsg("imu")));
+    try { ws.send(JSON.stringify(buildImuMsg())); } catch {}
     lastSentMs = Date.now();
     log(status("Sent once"));
   }
@@ -330,13 +442,12 @@
   };
   document.getElementById("btnDisconnect").onclick = disconnectWS;
 
-  document.getElementById("btnJoin").onclick = joinMatch;
-  document.getElementById("btnLeave").onclick = leaveAll;
-
   document.getElementById("btnStart").onclick = startSending;
   document.getElementById("btnStop").onclick = stopSending;
   document.getElementById("btnOnce").onclick = sendOnce;
 
+  // Init
+  setWsIndicator("CLOSED");
   log(status("Ready"));
 })();
 </script>

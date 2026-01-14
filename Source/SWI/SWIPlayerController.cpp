@@ -1,12 +1,13 @@
 #include "SWIPlayerController.h"
-#include "SWI/Components/SWISensorReceiverComponent.h"
-#include "TimerManager.h"
-#include "Engine/World.h"
+#include "SWI/Components/SWIGyroInputReceiverComponent.h"
 #include "GameFramework/Pawn.h"
+#include "GameFramework/Character.h"
+#include "GameFramework/CharacterMovementComponent.h"
 
 ASWIPlayerController::ASWIPlayerController()
 {
-	SensorReceiver = CreateDefaultSubobject<USWISensorReceiverComponent>(TEXT("SensorReceiver"));
+	PrimaryActorTick.bCanEverTick = true;
+	GyroReceiver = CreateDefaultSubobject<USWIGyroInputReceiverComponent>(TEXT("GyroReceiver"));
 }
 
 void ASWIPlayerController::BeginPlay()
@@ -16,65 +17,77 @@ void ASWIPlayerController::BeginPlay()
 	SetIgnoreMoveInput(false);
 	SetIgnoreLookInput(false);
 
-	if (PlayerCameraManager)
-	{
-		PlayerCameraManager->ViewPitchMin = MinPitch;
-		PlayerCameraManager->ViewPitchMax = MaxPitch;
-	}
-}
-
-void ASWIPlayerController::EndPlay(const EEndPlayReason::Type EndPlayReason)
-{
-	Super::EndPlay(EndPlayReason);
-}
-
-void ASWIPlayerController::CalibrateSensor()
-{
-	if (SensorReceiver)
-	{
-		SensorReceiver->CalibrateFromLatest();
-	}
+	UE_LOG(LogTemp, Log, TEXT("[PC] BeginPlay IgnoreMove=%d IgnoreLook=%d Pawn=%s"),
+		IsMoveInputIgnored() ? 1 : 0,
+		IsLookInputIgnored() ? 1 : 0,
+		*GetNameSafe(GetPawn()));
 }
 
 void ASWIPlayerController::PlayerTick(float DeltaTime)
 {
 	Super::PlayerTick(DeltaTime);
 
-	if (!SensorReceiver) return;
-
 	APawn* P = GetPawn();
-	if (!P) return;
-
-	// 센서가 “실제로 들어올 때만” 움직이게 하고 싶다 했으니:
-	// 누적값이 0이면 아무 것도 안 함
-	FVector2D LookDeltaDeg, MoveAxis;
-	int32 Fire = 0;
-	if (!SensorReceiver->Consume(LookDeltaDeg, MoveAxis, Fire))
+	if (!P || !GyroReceiver)
 	{
 		return;
 	}
 
-	// ===== Move =====
-	const FRotator CR = GetControlRotation();
-	const FRotator YawOnly(0.f, CR.Yaw, 0.f);
+	FVector2D MoveAxis(0, 0), LookAxis(0, 0);
+	const bool bHasGyro = GyroReceiver->GetIAValues(MoveAxis, LookAxis);
 
-	const FVector Forward = FRotationMatrix(YawOnly).GetUnitAxis(EAxis::X);
-	const FVector Right = FRotationMatrix(YawOnly).GetUnitAxis(EAxis::Y);
-
-	P->AddMovementInput(Forward, MoveAxis.X);
-	P->AddMovementInput(Right, MoveAxis.Y);
-
-	// ===== Look =====
-	AddYawInput(LookDeltaDeg.X);
-	AddPitchInput(LookDeltaDeg.Y);
-
-	if (bDebug)
+	// 연결 끊기면 입력 주지 않음 (Receiver가 stop도 해줌)
+	if (!bHasGyro)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("[SWI-PC] Move(%.3f,%.3f) Look(%.3f,%.3f)"),
-			MoveAxis.X, MoveAxis.Y, LookDeltaDeg.X, LookDeltaDeg.Y
-		);
+		return;
 	}
 
-	// Fire -> 무기/Ability 연결
-	// if (Fire) { ... }
+	// ✅ Movement가 DisableMovement 상태면 입력을 먹어도 영원히 안 움직입니다.
+	if (ACharacter* C = Cast<ACharacter>(P))
+	{
+		if (UCharacterMovementComponent* M = C->GetCharacterMovement())
+		{
+			if (M->MovementMode == MOVE_None)
+			{
+				M->SetMovementMode(MOVE_Walking);
+			}
+		}
+	}
+
+	ApplyMoveAxis(P, MoveAxis);
+	ApplyLookAxis(LookAxis);
+}
+
+void ASWIPlayerController::ApplyMoveAxis(APawn* ControlledPawn, const FVector2D& MoveAxis)
+{
+	const float Forward = MoveAxis.X * MoveScale;
+	const float Right = MoveAxis.Y * MoveScale;
+
+	if (FMath::IsNearlyZero(Forward) && FMath::IsNearlyZero(Right))
+		return;
+
+	FVector ForwardDir, RightDir;
+
+	if (bMoveByControlYaw)
+	{
+		const FRotator ControlRot = GetControlRotation();
+		const FRotator YawOnly(0.f, ControlRot.Yaw, 0.f);
+		ForwardDir = FRotationMatrix(YawOnly).GetUnitAxis(EAxis::X);
+		RightDir = FRotationMatrix(YawOnly).GetUnitAxis(EAxis::Y);
+	}
+	else
+	{
+		ForwardDir = ControlledPawn->GetActorForwardVector();
+		RightDir = ControlledPawn->GetActorRightVector();
+	}
+
+	ControlledPawn->AddMovementInput(ForwardDir, Forward, /*bForce=*/true);
+	ControlledPawn->AddMovementInput(RightDir, Right,   /*bForce=*/true);
+}
+
+void ASWIPlayerController::ApplyLookAxis(const FVector2D& LookAxis)
+{
+	// IgnoreLookInput 켜져있으면 이것도 무시되니 BeginPlay에서 해제했음
+	AddYawInput(LookAxis.X);
+	AddPitchInput(LookAxis.Y);
 }

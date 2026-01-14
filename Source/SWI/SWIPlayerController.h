@@ -4,7 +4,8 @@
 #include "GameFramework/PlayerController.h"
 #include "SWIPlayerController.generated.h"
 
-class USWISensorReceiverComponent;
+class USWIGyroInputReceiverComponent;
+
 UCLASS()
 class SWI_API ASWIPlayerController : public APlayerController
 {
@@ -14,22 +15,18 @@ public:
 	ASWIPlayerController();
 
 	virtual void BeginPlay() override;
-	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 	virtual void PlayerTick(float DeltaTime) override;
 
-	UFUNCTION(BlueprintCallable, Category = "SWI|Sensor")
-	void CalibrateSensor();
+protected:
+	UPROPERTY(EditAnywhere, Category = "Gyro|Refs")
+	TObjectPtr<USWIGyroInputReceiverComponent> GyroReceiver = nullptr;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SWI|Camera")
-	float MinPitch = -60.f;
+	UPROPERTY(EditAnywhere, Category = "Gyro|Move")
+	float MoveScale = 1.0f;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SWI|Camera")
-	float MaxPitch = 20.f;
+	UPROPERTY(EditAnywhere, Category = "Gyro|Move")
+	bool bMoveByControlYaw = true;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SWI|Debug")
-	bool bDebug = false;
-
-private:
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, meta = (AllowPrivateAccess = "true"))
-	TObjectPtr<USWISensorReceiverComponent> SensorReceiver;
+	void ApplyMoveAxis(APawn* ControlledPawn, const FVector2D& MoveAxis);
+	void ApplyLookAxis(const FVector2D& LookAxis);
 };

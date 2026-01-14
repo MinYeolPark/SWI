@@ -10,7 +10,9 @@
 			"LoadingPhase": "Default",
 			"AdditionalDependencies": [
 				"Engine",
-				"CoreUObject"
+				"CoreUObject",
+				"UMG",
+				"GameplayAbilities"
 			]
 		}
 	],
@@ -101,6 +103,10 @@
 		},
 		{
 			"Name": "Locomotor",
+			"Enabled": true
+		},
+		{
+			"Name": "GameplayAbilities",
 			"Enabled": true
 		}
 	]
