@@ -36,13 +36,11 @@ void ASWIPlayerController::PlayerTick(float DeltaTime)
 	FVector2D MoveAxis(0, 0), LookAxis(0, 0);
 	const bool bHasGyro = GyroReceiver->GetIAValues(MoveAxis, LookAxis);
 
-	// 연결 끊기면 입력 주지 않음 (Receiver가 stop도 해줌)
 	if (!bHasGyro)
 	{
 		return;
 	}
 
-	// ✅ Movement가 DisableMovement 상태면 입력을 먹어도 영원히 안 움직입니다.
 	if (ACharacter* C = Cast<ACharacter>(P))
 	{
 		if (UCharacterMovementComponent* M = C->GetCharacterMovement())
@@ -87,7 +85,6 @@ void ASWIPlayerController::ApplyMoveAxis(APawn* ControlledPawn, const FVector2D&
 
 void ASWIPlayerController::ApplyLookAxis(const FVector2D& LookAxis)
 {
-	// IgnoreLookInput 켜져있으면 이것도 무시되니 BeginPlay에서 해제했음
 	AddYawInput(LookAxis.X);
 	AddPitchInput(LookAxis.Y);
 }

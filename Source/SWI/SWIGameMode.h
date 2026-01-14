@@ -26,10 +26,4 @@ private:
 private:
     UPROPERTY()
     class USWIHubClientSubsystem* Hub = nullptr;
-
- /*   UPROPERTY()
-    AHubGameState* HGS = nullptr;*/
-
-    FString CurrentMatchId;
-    //TMap<FString, TWeakObjectPtr<APhoneProxyController>> ProxyByUid;
 };
